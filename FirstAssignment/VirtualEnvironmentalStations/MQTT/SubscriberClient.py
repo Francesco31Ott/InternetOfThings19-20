@@ -5,14 +5,24 @@ import paho.mqtt.client as mqtt
 import os
 import socket
 import ssl
- 
+import boto3
+import json
+
+dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+dynamoTable = dynamodb.Table('EnvironmentalStationDB')
+jsonP = ""
+
 def on_connect(client, userdata, flags, rc):                    # function for making connection
     print("Connection returned result: " + str(rc))
-    client.subscribe("#" , 1)                                   # subscribe to all topics
+    client.subscribe("myIotThing/data" , 0)                     # subscribe to the topic
  
-def on_message(client, userdata, msg):                          # function for receiving msgs
+def on_message(client, userdata, msg):                          # function for receiving msgs and inserting them into DB
+    payload = str(msg.payload)[2:-1]
+    jsonP = json.loads(payload)
     print("topic: "+msg.topic)
-    print("payload: "+str(msg.payload))
+    print("payload: "+payload)                          
+    dynamoTable.put_item(Item=jsonP)
+    
  
 #def on_log(client, userdata, level, msg):
 #    print(msg.topic+" "+str(msg.payload))
@@ -22,14 +32,15 @@ mqttc.on_connect = on_connect                                   # assign on_conn
 mqttc.on_message = on_message                                   # assign on_message function
 #mqttc.on_log = on_log
 
+
 #### Change following parameters ####  
 awshost = "a3um1mnv6jt2hg-ats.iot.us-east-1.amazonaws.com"      # Endpoint
 awsport = 8883                                                  # Port no.   
-clientId = "myThing"                                            # Thing_Name
-thingName = "myThing"                                           # Thing_Name
-caPath = "../../certs/root-CA.crt"                              # Root_CA_Certificate_Name
-certPath = "../../certs/certificate.pem.crt"                    # <Thing_Name>.cert.pem
-keyPath = "../../certs/private.pem.key"
+clientId = "myIotThing"                                         # Thing_Name
+thingName = "myIotThing"                                        # Thing_Name
+caPath = "../certs/root-CA.crt"                                 # Root_CA_Certificate_Name
+certPath = "../certs/certificate.pem.crt"                       # <Thing_Name>.cert.pem
+keyPath = "../certs/private.pem.key"
  
 mqttc.tls_set(caPath, certfile=certPath, keyfile=keyPath, cert_reqs=ssl.CERT_REQUIRED, tls_version=ssl.PROTOCOL_TLSv1_2, ciphers=None)  # pass parameters
  
