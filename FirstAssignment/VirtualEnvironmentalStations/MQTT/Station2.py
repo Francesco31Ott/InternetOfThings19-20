@@ -2,7 +2,7 @@
 
 # This script works as a Environmental Station, so it will compute (random) values
 # through its virtual sensor and it will publish the message composed by the values
-# calculated before on the topic, as long as the station works correctly.
+# calculated before on the MQTT channel, as long as the station works correctly.
 
 # importing libraries
 import paho.mqtt.client as mqtt
@@ -16,8 +16,8 @@ import datetime
  
 connflag = False
  
-def on_connect(client, userdata, flags, rc):                        # function for making connection with aws iot
-    global connflag
+def on_connect(client, userdata, flags, rc):                        # function for making connection between with aws iot
+    global connflag                                                 # the MQTT client and the broker
     print("Connected to AWS")
     connflag = True
     print("Connection returned result: " + str(rc) )
@@ -28,7 +28,7 @@ def on_message(client, userdata, msg):                              # function f
 #def on_log(client, userdata, level, buf):
 #    print(msg.topic+" "+str(msg.payload))
  
-mqttc = mqtt.Client()                                               # mqttc object
+mqttc = mqtt.Client()                                               # MQTT client object
 mqttc.on_connect = on_connect                                       # assign on_connect function
 mqttc.on_message = on_message                                       # assign on_message function
 #mqttc.on_log = on_log
@@ -38,14 +38,14 @@ awshost = "a3um1mnv6jt2hg-ats.iot.us-east-1.amazonaws.com"          # endpoint
 awsport = 8883                                                      # port no.   
 clientId = "sensor"                                                 # client id
 thingName = "sensor"                                                # thing name
-caPath = "../certs/root-CA.crt"                                     # root ca certificate
-certPath = "../certs/certificate.pem.crt"                           # certificate
+caPath = "../certs/root-CA.crt"                                     # rootCA certificate
+certPath = "../certs/certificate.pem.crt"                           # client certificate
 keyPath = "../certs/private.pem.key"                                # private key
  
 mqttc.tls_set(caPath, certfile=certPath, keyfile=keyPath, cert_reqs=ssl.CERT_REQUIRED,
               tls_version=ssl.PROTOCOL_TLSv1_2, ciphers=None)       # pass parameters
  
-mqttc.connect(awshost, awsport, keepalive=60)                       # connect to aws server
+mqttc.connect(awshost, awsport, keepalive=60)                       # connect to AWS server
  
 mqttc.loop_start()                                                  # start the loop for sending
                                                                     # messages continuously
@@ -59,11 +59,12 @@ while(1):
         rain = str(randint(0, 50))
         time = str(datetime.datetime.now())[:19]                    # computation of the current date and time
         
-        data ={"id":"1", "datetime":time, "temperature":temp, "humidity":hum,
+        data ={"id":"2", "datetime":time, "temperature":temp, "humidity":hum,
                "windDirection":wind_dir, "windIntensity":wind_int, "rainHeight":rain}
         jsonData = json.dumps(data)
-        mqttc.publish("sensor/data", jsonData, 0)                   # publish this message on the topic
-
+        mqttc.publish("sensor/data", jsonData, 1)                   # publish this message on the topic
+                                                                    # MQTT channel with QoS 1
+                                                                    
         print("Message sent: time ",time)                           # a simple check which confirms that
         print("Message sent: temperature ",temp," Celsius")         # the message was sent correctly
         print("Message sent: humidity ",hum," %")
