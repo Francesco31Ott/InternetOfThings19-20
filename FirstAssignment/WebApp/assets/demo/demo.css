@@ -60,6 +60,17 @@
   margin-top: 70px;
 }
 
+thead.noscr, tbody.noscr { display: block; }
+
+tbody.noscr {
+    height: 300px;       /* Just for the demo          */
+    overflow-y: auto;    /* Trigger vertical scroll    */
+    overflow-x: hidden;  /* Hide the horizontal scroll */
+}
+
+thead, tbody{
+    text-align: center;
+}
 /* .div {
   display: flex;
   justify-content: center;

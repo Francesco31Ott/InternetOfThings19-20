@@ -173,129 +173,32 @@
                 <div class="card">
                   <div class="card-header card-header-warning">
                     <h4 class="card-title ">Temperature</h4>
-                    <p class="card-category">Data acquired from sensors of the first Environmental Station</p>
+                    <p class="card-category">Data acquired from sensors in the last hour</p>
                   </div>
                   <div class="card-body">
                     <div class="table-responsive">
                       <table class="table">
-                        <thead class=" text-primary">
+                        <thead class=" text-warning">
                           <th>
-                            ID
+                            DateTime
                           </th>
                           <th>
-                            Name
+                            StationID
                           </th>
                           <th>
-                            Country
-                          </th>
-                          <th>
-                            City
-                          </th>
-                          <th>
-                            Salary
+                            Value
                           </th>
                         </thead>
-                        <tbody>
+                        <tbody id="idtemperature">
                           <tr>
+                            <td>
+                              2020-03-25 10:56:42
+                            </td>
                             <td>
                               1
                             </td>
-                            <td>
-                              Dakota Rice
-                            </td>
-                            <td>
-                              Niger
-                            </td>
-                            <td>
-                              Oud-Turnhout
-                            </td>
                             <td class="text-primary">
-                              $36,738
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>
-                              2
-                            </td>
-                            <td>
-                              Minerva Hooper
-                            </td>
-                            <td>
-                              Curaçao
-                            </td>
-                            <td>
-                              Sinaai-Waas
-                            </td>
-                            <td class="text-primary">
-                              $23,789
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>
-                              3
-                            </td>
-                            <td>
-                              Sage Rodriguez
-                            </td>
-                            <td>
-                              Netherlands
-                            </td>
-                            <td>
-                              Baileux
-                            </td>
-                            <td class="text-primary">
-                              $56,142
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>
-                              4
-                            </td>
-                            <td>
-                              Philip Chaney
-                            </td>
-                            <td>
-                              Korea, South
-                            </td>
-                            <td>
-                              Overland Park
-                            </td>
-                            <td class="text-primary">
-                              $38,735
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>
-                              5
-                            </td>
-                            <td>
-                              Doris Greene
-                            </td>
-                            <td>
-                              Malawi
-                            </td>
-                            <td>
-                              Feldkirchen in Kärnten
-                            </td>
-                            <td class="text-primary">
-                              $63,542
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>
-                              6
-                            </td>
-                            <td>
-                              Mason Porter
-                            </td>
-                            <td>
-                              Chile
-                            </td>
-                            <td>
-                              Gloucester
-                            </td>
-                            <td class="text-primary">
-                              $78,615
+                              40
                             </td>
                           </tr>
                         </tbody>
@@ -306,14 +209,14 @@
               </div>
               <div class="col-md-12">
                 <div class="card">
-                  <div class="card-header card-header-success">
+                  <div class="card-header card-header-warning">
                     <h4 class="card-title ">Humidity</h4>
-                    <p class="card-category">Data acquired from sensors of the second Environmental Station</p>
+                    <p class="card-category">Data acquired from sensors in the last hour</p>
                   </div>
                   <div class="card-body">
                     <div class="table-responsive">
                       <table class="table">
-                        <thead class=" text-primary">
+                        <thead class=" text-warning">
                           <th>
                             ID
                           </th>
@@ -441,14 +344,14 @@
               </div>
               <div class="col-md-12">
                 <div class="card">
-                  <div class="card-header card-header-danger">
+                  <div class="card-header card-header-warning">
                     <h4 class="card-title ">Wind Direction</h4>
-                    <p class="card-category">Data acquired from sensors of the second Environmental Station</p>
+                    <p class="card-category">Data acquired from sensors in the last hour</p>
                   </div>
                   <div class="card-body">
                     <div class="table-responsive">
                       <table class="table">
-                        <thead class=" text-primary">
+                        <thead class=" text-warning">
                           <th>
                             ID
                           </th>
@@ -576,14 +479,14 @@
               </div>
               <div class="col-md-12">
                 <div class="card">
-                  <div class="card-header card-header-info">
+                  <div class="card-header card-header-warning">
                     <h4 class="card-title ">Wind Intensity</h4>
-                    <p class="card-category">Data acquired from sensors of the second Environmental Station</p>
+                    <p class="card-category">Data acquired from sensors in the last hour</p>
                   </div>
                   <div class="card-body">
                     <div class="table-responsive">
                       <table class="table">
-                        <thead class=" text-primary">
+                        <thead class=" text-warning">
                           <th>
                             ID
                           </th>
@@ -745,14 +648,14 @@
               </div>
               <div class="col-md-12">
                 <div class="card">
-                  <div class="card-header card-header-secondary">
+                  <div class="card-header card-header-warning">
                     <h4 class="card-title ">Rain Height</h4>
-                    <p class="card-category">Data acquired from sensors of the second Environmental Station</p>
+                    <p class="card-category">Data acquired from sensors in the last hour</p>
                   </div>
                   <div class="card-body">
                     <div class="table-responsive">
                       <table class="table">
-                        <thead class=" text-primary">
+                        <thead class=" text-warning">
                           <th>
                             ID
                           </th>
@@ -1205,8 +1108,12 @@
 
           });
         });
+        getLastHourData('temperature');
       });
+
+
     </script>
+    <script src="../assets/js/script.js" type="text/javascript"></script>
   </body>
 
 </html>
