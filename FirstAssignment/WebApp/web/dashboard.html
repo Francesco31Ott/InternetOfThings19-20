@@ -176,9 +176,9 @@
                       <i class="fas fa-thermometer-half"></i>
                     </div>
                     <p class="card-category">Temperature</p>
-                    <h3 class="card-title">25
+                    <h3 id="latest-value" class="card-title">25
                       <small>°C</small>
-                    </h3>
+                    </h3 id="latest-value">
                   </div>
                   <div class="card-footer">
                     <div class="stats">
@@ -194,7 +194,7 @@
                       <i class="fa fa-tint"></i>
                     </div>
                     <p class="card-category">Humidity</p>
-                    <h3 class="card-title">47
+                    <h3 id="latest-value" class="card-title">47
                       <small>%</small>
                     </h3>
                   </div>
@@ -212,7 +212,7 @@
                       <i class="fa fa-bars"></i>
                     </div>
                     <p class="card-category">Wind Direction</p>
-                    <h3 class="card-title">173
+                    <h3 id="latest-value" class="card-title">173
                       <small>°</small>
                     </h3>
                   </div>
@@ -232,7 +232,7 @@
                       <i class="fas fa-wind"></i>
                     </div>
                     <p class="card-category">Wind Intensity</p>
-                    <h3 class="card-title">12
+                    <h3 id="latest-value" class="card-title">12
                       <small>m/s</small>
                     </h3>
                   </div>
@@ -250,7 +250,7 @@
                       <i class="fas fa-cloud-rain"></i>
                     </div>
                     <p class="card-category">Rain Height</p>
-                    <h3 class="card-title">3
+                    <h3 id="latest-value" class="card-title">3
                       <small>mm/h</small>
                     </h3>
                   </div>
@@ -262,7 +262,7 @@
                 </div>
               </div>
             </div>
-            <div class="row">
+            <!--<div class="row">
               <div class="col-md-4">
                 <div class="card card-chart">
                   <div class="card-header card-header-success">
@@ -313,7 +313,7 @@
                   </div>
                 </div>
               </div>
-            </div>
+            </div> -->
             <div class="row">
               <!-- <div class="col-lg-6 col-md-12">
                 <div class="card">
@@ -787,6 +787,8 @@
     <script src="../assets/js/core/popper.min.js"></script>
     <script src="../assets/js/core/bootstrap-material-design.min.js"></script>
     <script src="../assets/js/plugins/perfect-scrollbar.jquery.min.js"></script>
+
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.7.16.min.js"></script>
     <!-- Plugin for the momentJs  -->
     <script src="../assets/js/plugins/moment.min.js"></script>
     <!--  Plugin for Sweet Alert -->
@@ -1003,6 +1005,7 @@
 
       });
     </script>
+    <script src="script.js" type="text/javascript"></script>
   </body>
 
 </html>
