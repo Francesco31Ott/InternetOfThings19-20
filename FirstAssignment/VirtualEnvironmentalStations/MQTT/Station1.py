@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+# This script works as a Environmental Station, so it will compute (random) values
+# through its virtual sensor and it will publish the message composed by the values
+# calculated before on the topic, as long as the station works correctly.
+
 # importing libraries
 import paho.mqtt.client as mqtt
 import os
@@ -12,13 +16,13 @@ import datetime
  
 connflag = False
  
-def on_connect(client, userdata, flags, rc):                        # function for making connection
+def on_connect(client, userdata, flags, rc):                        # function for making connection with aws iot
     global connflag
     print("Connected to AWS")
     connflag = True
     print("Connection returned result: " + str(rc) )
  
-def on_message(client, userdata, msg):                              # function for ending msg
+def on_message(client, userdata, msg):                              # function for ending messages
     print(msg.topic+" "+str(msg.payload))
  
 #def on_log(client, userdata, level, buf):
@@ -30,36 +34,38 @@ mqttc.on_message = on_message                                       # assign on_
 #mqttc.on_log = on_log
 
 #### Change following parameters #### 
-awshost = "a3um1mnv6jt2hg-ats.iot.us-east-1.amazonaws.com"          # Endpoint
-awsport = 8883                                                      # Port no.   
-clientId = "myIotThing"                                                # Thing_Name
-thingName = "myIotThing"                                               # Thing_Name
-caPath = "../certs/root-CA.crt"                                  # Root_CA_Certificate_Name.crt
-certPath = "../certs/certificate.pem.crt"                        # <Thing_Name>.cert.pem.crt
-keyPath = "../certs/private.pem.key"                             # <Thing_Name>.private.pem.key
+awshost = "a3um1mnv6jt2hg-ats.iot.us-east-1.amazonaws.com"          # endpoint
+awsport = 8883                                                      # port no.   
+clientId = "sensor"                                                 # client id
+thingName = "sensor"                                                # thing name
+caPath = "../certs/root-CA.crt"                                     # root ca certificate
+certPath = "../certs/certificate.pem.crt"                           # certificate
+keyPath = "../certs/private.pem.key"                                # private key
  
-mqttc.tls_set(caPath, certfile=certPath, keyfile=keyPath, cert_reqs=ssl.CERT_REQUIRED, tls_version=ssl.PROTOCOL_TLSv1_2, ciphers=None)  # pass parameters
+mqttc.tls_set(caPath, certfile=certPath, keyfile=keyPath, cert_reqs=ssl.CERT_REQUIRED,
+              tls_version=ssl.PROTOCOL_TLSv1_2, ciphers=None)       # pass parameters
  
 mqttc.connect(awshost, awsport, keepalive=60)                       # connect to aws server
  
-mqttc.loop_start()                                                  # Start the loop
- 
+mqttc.loop_start()                                                  # start the loop for sending
+                                                                    # messages continuously
 while(1):
-    sleep(5)
+    sleep(5)                                                        # waiting between messages
     if connflag == True:
-        temp = str(randint(-50,50))                                      # Generating Multiple Readings
-        hum = str(randint(0, 100))
-        wind_dir = str(randint(0, 360))
+        temp = str(randint(-50,50))                                 # computation of all the (random) values
+        hum = str(randint(0, 100))                                  # of the sensors, for this
+        wind_dir = str(randint(0, 360))                             # specific station (with id 1)
         wind_int = str(randint(0, 100))
         rain = str(randint(0, 50))
-        time = str(datetime.datetime.now())[:19]
+        time = str(datetime.datetime.now())[:19]                    # computation of the current date and time
         
-        data ={"id":"1", "datetime":time, "temperature":temp, "humidity":hum, "windDirection":wind_dir, "windIntensity":wind_int, "rainHeight":rain}
+        data ={"id":"1", "datetime":time, "temperature":temp, "humidity":hum,
+               "windDirection":wind_dir, "windIntensity":wind_int, "rainHeight":rain}
         jsonData = json.dumps(data)
-        mqttc.publish("myIotThing/data", jsonData, 0)                   # topic: <TopicName> # Publishing Topics values
+        mqttc.publish("sensor/data", jsonData, 0)                   # publish this message on the topic
 
-        print("Message sent: time ",time)
-        print("Message sent: temperature ",temp," Celsius")         # Print sent <TopicName> msg on console
+        print("Message sent: time ",time)                           # a simple check which confirms that
+        print("Message sent: temperature ",temp," Celsius")         # the message was sent correctly
         print("Message sent: humidity ",hum," %")
         print("Message sent: windDirection ",wind_dir," Degrees")
         print("Message sent: windIntensity ",wind_int," m/s")
