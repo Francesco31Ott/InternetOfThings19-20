@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+// libraries added
+#include <time.h>
 
 #include "shell.h"
 #include "msg.h"
@@ -39,6 +41,15 @@
 
 static char stack[THREAD_STACKSIZE_DEFAULT];
 static msg_t queue[8];
+
+// struct that contains sensors
+typedef struct sensors{
+  int temperature;
+  int humidity;
+  int windDirection;
+  int windIntensity;
+  int rainHeight;
+}t_sensors;
 
 static emcute_sub_t subscriptions[NUMOFSUBS];
 static char topics[NUMOFSUBS][TOPIC_MAXLEN];
@@ -78,6 +89,87 @@ static unsigned get_qos(const char *str)
         return EMCUTE_QOS_0;
         break;
     }
+}
+
+// function that computes random values in the specified range
+int rand_val(int min, int max){
+  srand(time(NULL));
+  return (rand() % (int)((max-min+1) * 100)) / 100 + min;
+}
+
+// function that generate sensor values
+static void gen_sensors_values(t_sensors* sensors){
+  sensors->temperature = rand_val(-50,50);
+  sensors->humidity = rand_val(0, 100);
+  sensors->windDirection = rand_val(0, 360);
+  sensors->windIntensity = rand_val(0, 100);
+  sensors->rainHeight = rand_val(0, 50);
+}
+
+// new shell command: start the station
+// the function takes in input ip address and port of the gateway,
+// and the id of the specified station
+// every five seconds it generates new sensor values and publish them to 
+// the topic sensor/data (maybe to sensor/data + station id)
+static int cmd_start(int argc, char **argv){
+  if (argc < 4) {
+      printf("usage: %s <address> <port> <id>\n", argv[0]);
+      return 1;
+  }
+  // sensors struct
+  t_sensors sensors;
+  // name of the topic
+  char topic[32] = "sensor/data";
+  // sprintf(topic,"sensor/data%d", atoi(argv[3]));
+  
+  // json that it will published
+  char json[128];
+  
+
+  // parameters for the connect
+  char* params_con[2] = [argv[1], atoi(argv[2])];
+  
+  while(1){
+    // it tries to connect to the gateway
+    if (cmd_con(2, params_con)) {
+      continue;
+    }
+    
+    // takes the current date and time
+    char datetime[20];
+    time_t current;
+    time(&current);
+    struct tm* t = localtime(&current);
+    int c = strftime(datetime, sizeof(datetime), "%Y-%m-%d %T", t);
+    if(c == 0) {
+      printf("Error! Format error\n");
+      return NULL;
+    } 
+
+    // updates sensor values
+    gen_sensors_values(&sensors);
+
+    // fills the json document
+    sprintf(json, "{\"id\": \"%d\", \"datetime\": \"%d\", \"temperature\": "
+                  "\"%d\", \"humidity\": \"%d\", \"windDirection\": \"%d\", "
+                  "\"windIntensity\": \"%d\", \"rainHeight\": \"%d\"}",
+                  atoi(argv[3]), datetime, sensors.temperature, sensors.humidity, 
+                  sensors.windDirection, sensors.windIntensity, sensors.rainHeight);
+
+    // parameters for the publish
+    char* params_pub[3] = {"pub", topic, json};
+      
+    // publish to the topic
+    cmd_pub(3, params_pub));
+
+    // it disconnects from the gateway
+    cmd_discon();
+
+    // it sleeps for five seconds
+    xtimer_sleep(5);
+  }
+
+  return 0;
 }
 
 static int cmd_con(int argc, char **argv)
@@ -283,6 +375,7 @@ static int cmd_will(int argc, char **argv)
 }
 
 static const shell_command_t shell_commands[] = {
+    {"start", "start the station", cmd_start},
     {"con", "connect to MQTT broker", cmd_con},
     {"discon", "disconnect from the current broker", cmd_discon},
     {"pub", "publish something", cmd_pub},
