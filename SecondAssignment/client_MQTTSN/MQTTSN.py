@@ -4,25 +4,22 @@
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
- * and Eclipse Distribution License v1.0 which accompany this distribution. 
+ * and Eclipse Distribution License v1.0 which accompany this distribution.
  *
- * The Eclipse Public License is available at 
+ * The Eclipse Public License is available at
  *    http://www.eclipse.org/legal/epl-v10.html
- * and the Eclipse Distribution License is available at 
+ * and the Eclipse Distribution License is available at
  *   http://www.eclipse.org/org/documents/edl-v10.php.
  *
  * Contributors:
  *    Ian Craggs - initial API and implementation and/or initial documentation
+ *    EH Ong - port to Python 3 and Micropython
  *******************************************************************************/
 """
 
-# Low-level protocol interface for MQTTs
+import struct
 
-try:
-  False = not True
-except NameError:
-  True = (1 == 1)
-  False = not True
+# Low-level protocol interface for MQTTs
 
 # Message types
 ADVERTISE, SEARCHGW, GWINFO, reserved, \
@@ -47,34 +44,34 @@ TopicIdType_Names = ["NORMAL", "PREDEFINED", "SHORT_NAME"]
 TOPIC_NORMAL, TOPIC_PREDEFINED, TOPIC_SHORTNAME = range(3)
 
 def writeInt16(length):
-  return chr(length / 256)+ chr(length % 256)
+  return struct.pack('>H', length)
 
 def readInt16(buf):
-  return ord(buf[0])*256 + ord(buf[1])
+  return buf[0]*256 + buf[1]
 
 def getPacket(aSocket):
   "receive the next packet"
-  buf, address = aSocket.recvfrom(65535) # get the first byte fixed header
+  buf, address = aSocket.recvfrom(1000) # get the first byte fixed header
   if buf == "":
     return None
-  
-  length = ord(buf[0])
+
+  length = buf[0]
   if length == 1:
     if buf == "":
       return None
     length = readInt16(buf[1:])
-    
+
   return buf, address
 
 def MessageType(buf):
-  if ord(buf[0]) == 1:
-    msgtype = ord(buf[3])
+  if buf[0] == 1:
+    msgtype = buf[3]
   else:
-    msgtype = ord(buf[1])
+    msgtype = buf[1]
   return msgtype
 
 class Flags:
-  
+
   def __init__(self):
     self.DUP = False          # 1 bit
     self.QoS = 0              # 2 bits
@@ -82,7 +79,7 @@ class Flags:
     self.Will = False         # 1 bit
     self.CleanSession = True  # 1 bit
     self.TopicIdType = 0      # 2 bits
-    
+
   def __eq__(self, flags):
     return self.DUP == flags.DUP and \
          self.QoS == flags.QoS and \
@@ -90,28 +87,29 @@ class Flags:
          self.Will == flags.Will and \
          self.CleanSession == flags.CleanSession and \
          self.TopicIdType == flags.TopicIdType
-  
+
   def __ne__(self, flags):
     return not self.__eq__(flags)
-  
+
   def __str__(self):
     "return printable representation of our data"
     return '{DUP '+str(self.DUP)+ \
            ", QoS "+str(self.QoS)+", Retain "+str(self.Retain) + \
            ", Will "+str(self.Will)+", CleanSession "+str(self.CleanSession) + \
            ", TopicIdType "+str(self.TopicIdType)+"}"
-    
+
   def pack(self):
     "pack data into string buffer ready for transmission down socket"
-    buffer = chr( (self.DUP << 7) | (self.QoS << 5) | (self.Retain << 4) | \
-         (self.Will << 3) | (self.CleanSession << 2) | self.TopicIdType )
-    #print "Flags - pack", str(bin(ord(buffer))), len(buffer)
+    buffer = (self.DUP << 7) | (self.QoS << 5) | (self.Retain << 4) | \
+         (self.Will << 3) | (self.CleanSession << 2) | self.TopicIdType
+    buffer = struct.pack('>B', buffer)
+    #print("Flags - pack", str(bin(ord(buffer))), len(buffer))
     return buffer
-  
+
   def unpack(self, buffer):
     "unpack data from string buffer into separate fields"
-    b0 = ord(buffer[0])
-    #print "Flags - unpack", str(bin(b0)), len(buffer), buffer
+    b0 = buffer[0]
+    #print("Flags - unpack", str(bin(b0)), len(buffer), buffer)
     self.DUP = ((b0 >> 7) & 0x01) == 1
     self.QoS = (b0 >> 5) & 0x03
     self.Retain = ((b0 >> 4) & 0x01) == 1
@@ -136,28 +134,28 @@ class MessageHeaders:
   def pack(self, length):
     "pack data into string buffer ready for transmission down socket"
     # length does not yet include the length or msgtype bytes we are going to add
-    buffer = self.encode(length) + chr(self.MsgType)
+    buffer = self.encode(length) + struct.pack('>B', self.MsgType)
     return buffer
 
   def encode(self, length):
     self.Length = length + 2
     assert 2 <= self.Length <= 65535
     if self.Length < 256:
-      buffer = chr(self.Length)
-      print "length", self.Length
+      buffer = struct.pack('>B', self.Length)
+      #print("length", self.Length)
     else:
       self.Length += 2
-      buffer = chr(1) + writeInt16(self.Length)
+      buffer = struct.pack('>B', 1) + writeInt16(self.Length)
     return buffer
 
   def unpack(self, buffer):
     "unpack data from string buffer into separate fields"
     (self.Length, bytes) = self.decode(buffer)
-    self.MsgType = ord(buffer[bytes])
+    self.MsgType = buffer[bytes]
     return bytes + 1
 
   def decode(self, buffer):
-    value = ord(buffer[0])
+    value = buffer[0]
     if value > 1:
       bytes = 1
     else:
@@ -166,7 +164,9 @@ class MessageHeaders:
     return (value, bytes)
 
 def writeUTF(aString):
-  return writeInt16(len(aString)) + aString
+  aString = str(aString).encode()
+  fmt = '>%ds' % len(aString)
+  return writeInt16(len(aString)) + struct.pack(fmt, aString)
 
 def readUTF(buffer):
   length = readInt16(buffer)
@@ -183,7 +183,7 @@ class Packets:
 
   def __eq__(self, packet):
     return False if packet == None else self.mh == packet.mh
-  
+
   def __ne__(self, packet):
     return not self.__eq__(packet)
 
@@ -195,27 +195,27 @@ class Advertises(Packets):
     self.Duration = 0 # 2 bytes
     if buffer:
       self.unpack(buffer)
-      
+
   def pack(self):
-    buffer = chr(self.GwId) + writeInt16(self.Duration)
+    buffer = struct.pack('>B', self.GwId) + writeInt16(self.Duration)
     return self.mh.pack(len(buffer)) + buffer
-  
+
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == ADVERTISE
-    self.GwId = ord(buffer[pos])
+    self.GwId = buffer[pos]
     pos += 1
     self.Duration = readInt16(buffer[pos:])
-    
+
   def __str__(self):
     return str(self.mh) + " GwId "+str(self.GwId)+" Duration "+str(self.Duration)
-    
+
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.GwId == packet.GwId and \
            self.Duration == packet.Duration
-  
-  
+
+
 class SearchGWs(Packets):
 
   def __init__(self, buffer=None):
@@ -223,20 +223,20 @@ class SearchGWs(Packets):
     self.Radius = 0
     if buffer:
       self.unpack(buffer)
-      
+
   def pack(self):
     buffer = writeInt16(self.Radius)
     buffer = self.mh.pack(len(buffer)) + buffer
     return buffer
-  
+
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == SEARCHGW
     self.Radius = readInt16(buffer[pos:])
-    
+
   def __str__(self):
     return str(self.mh) + " Radius "+str(self.Radius)
-    
+
 class GWInfos(Packets):
 
   def __init__(self, buffer=None):
@@ -245,14 +245,16 @@ class GWInfos(Packets):
     self.GwAdd = None # optional
     if buffer:
       self.unpack(buffer)
-      
+
   def pack(self):
-    buffer = chr(self.GwId)
+    buffer = struct.pack('>B', self.GwId)
     if self.GwAdd:
-      buffer += self.GwAdd
+      self.GwAdd = str(self.GwAdd).encode()
+      fmt = '>%ds' % len(self.GwAdd)
+      buffer += struct.pack(fmt, self.GwAdd)
     buffer = self.mh.pack(len(buffer)) + buffer
     return buffer
-  
+
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == GWINFO
@@ -262,7 +264,7 @@ class GWInfos(Packets):
       self.GwAdd = None
     else:
       self.GwAdd = buffer[pos:]
-          
+
   def __str__(self):
     buf = str(self.mh) + " Radius "+str(self.GwId)
     if self.GwAdd:
@@ -281,14 +283,16 @@ class Connects(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = self.Flags.pack() + chr(self.ProtocolId) + writeInt16(self.Duration) + self.ClientId
+    self.ClientId = str(self.ClientId).encode()
+    fmt = '>%ds' % len(self.ClientId)
+    buffer = self.Flags.pack() + struct.pack('>B', self.ProtocolId) + writeInt16(self.Duration) + struct.pack(fmt, self.ClientId)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == CONNECT
-    pos += self.Flags.unpack(buffer[pos])
-    self.ProtocolId = ord(buffer[pos])
+    pos += self.Flags.unpack([buffer[pos]])
+    self.ProtocolId = buffer[pos]
     pos += 1
     self.Duration = readInt16(buffer[pos:])
     pos += 2
@@ -298,7 +302,7 @@ class Connects(Packets):
     buf = str(self.mh) + ", " + str(self.Flags) + \
     ", ProtocolId " + str(self.ProtocolId) + \
     ", Duration " + str(self.Duration) + \
-    ", ClientId " + self.ClientId
+    ", ClientId " + str(self.ClientId)
     return buf
 
   def __eq__(self, packet):
@@ -319,13 +323,13 @@ class Connacks(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = chr(self.ReturnCode)
+    buffer = struct.pack('>B', self.ReturnCode)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == CONNACK
-    self.ReturnCode = ord(buffer[pos])
+    self.ReturnCode = buffer[pos]
 
   def __str__(self):
     return str(self.mh)+", ReturnCode "+str(self.ReturnCode)
@@ -345,8 +349,8 @@ class WillTopicReqs(Packets):
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == WILLTOPICREQ
-    
-    
+
+
 class WillTopics(Packets):
 
   def __init__(self, buffer = None):
@@ -357,7 +361,9 @@ class WillTopics(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = self.flags.pack() + self.WillTopic
+    self.WillTopic = str(self.WillTopic).encode()
+    fmt = '>%ds' % len(self.WillTopic)
+    buffer = self.flags.pack() + struct.pack(fmt, self.WillTopic)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
@@ -367,13 +373,13 @@ class WillTopics(Packets):
     self.WillTopic = buffer[pos:self.mh.Length]
 
   def __str__(self):
-    return str(self.mh)+", Flags "+str(self.flags)+", WillTopic "+self.WillTopic
+    return str(self.mh)+", Flags "+str(self.flags)+", WillTopic "+str(self.WillTopic)
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.flags == packet.flags and \
            self.WillTopic == packet.WillTopic
-          
+
 class WillMsgReqs(Packets):
 
   def __init__(self, buffer = None):
@@ -384,8 +390,8 @@ class WillMsgReqs(Packets):
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == WILLMSGREQ
-    
-    
+
+
 class WillMsgs(Packets):
 
   def __init__(self, buffer = None):
@@ -395,7 +401,9 @@ class WillMsgs(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    return self.mh.pack(len(self.WillMsg)) + self.WillMsg
+    self.WillMsg = str(self.WillMsg).encode()
+    fmt = '>%ds' % len(self.WillMsg)
+    return self.mh.pack(len(self.WillMsg)) + struct.pack(fmt, self.WillMsg)
 
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
@@ -403,12 +411,12 @@ class WillMsgs(Packets):
     self.WillMsg = buffer[pos:self.mh.Length]
 
   def __str__(self):
-    return str(self.mh)+", WillMsg "+self.WillMsg
+    return str(self.mh)+", WillMsg "+str(self.WillMsg)
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.WillMsg == packet.WillMsg
-          
+
 class Registers(Packets):
 
   def __init__(self, buffer = None):
@@ -420,7 +428,9 @@ class Registers(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = writeInt16(self.TopicId) + writeInt16(self.MsgId) + self.TopicName
+    self.TopicName = str(self.TopicName).encode()
+    fmt = '>%ds' % len(self.TopicName)
+    buffer = writeInt16(self.TopicId) + writeInt16(self.MsgId) + struct.pack(fmt, self.TopicName)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
@@ -433,7 +443,7 @@ class Registers(Packets):
     self.TopicName = buffer[pos:self.mh.Length]
 
   def __str__(self):
-    return str(self.mh)+", TopicId "+str(self.TopicId)+", MsgId "+str(self.MsgId)+", TopicName "+self.TopicName
+    return str(self.mh)+", TopicId "+str(self.TopicId)+", MsgId "+str(self.MsgId)+", TopicName "+str(self.TopicName)
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
@@ -453,7 +463,7 @@ class Regacks(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = writeInt16(self.TopicId) + writeInt16(self.MsgId) + chr(self.ReturnCode)
+    buffer = writeInt16(self.TopicId) + writeInt16(self.MsgId) + struct.pack('>B', self.ReturnCode)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
@@ -463,7 +473,7 @@ class Regacks(Packets):
     pos += 2
     self.MsgId = readInt16(buffer[pos:])
     pos += 2
-    self.ReturnCode = ord(buffer[pos])
+    self.ReturnCode = buffer[pos]
 
   def __str__(self):
     return str(self.mh)+", TopicId "+str(self.TopicId)+", MsgId "+str(self.MsgId)+", ReturnCode "+str(self.ReturnCode)
@@ -490,10 +500,19 @@ class Publishes(Packets):
   def pack(self):
     buffer = self.Flags.pack()
     if self.Flags.TopicIdType in [TOPIC_NORMAL, TOPIC_PREDEFINED, 3]:
-      print "topic id is", self.TopicId
+      #print("topic id is", self.TopicId)
       buffer += writeInt16(self.TopicId)
     elif self.Flags.TopicIdType == TOPIC_SHORTNAME:
-      buffer += (self.TopicName + "  ")[0:2]
+      topic_short = (self.TopicName + "  ")[0:2]
+      topic_short = topic_short.encode()
+      fmt = '>%ds' % len(topic_short)
+      buffer += topic_short
+    if isinstance(self.Data, str):
+      self.Data = str(self.Data).encode()
+      fmt = '>%ds' % len(self.Data)
+      self.Data = struct.pack(fmt, self.Data)
+    elif isinstance(self.Data, bytes):
+      pass
     buffer += writeInt16(self.MsgId) + self.Data
     return self.mh.pack(len(buffer)) + buffer
 
@@ -501,7 +520,7 @@ class Publishes(Packets):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == PUBLISH
     pos += self.Flags.unpack(buffer[pos:])
-    
+
     self.TopicId = 0
     self.TopicName = ""
     if self.Flags.TopicIdType in [TOPIC_NORMAL, TOPIC_PREDEFINED]:
@@ -514,7 +533,7 @@ class Publishes(Packets):
     self.Data = buffer[pos:self.mh.Length]
 
   def __str__(self):
-    return str(self.mh)+", Flags "+str(self.Flags)+", TopicId "+str(self.TopicId)+", MsgId "+str(self.MsgId)+", Data "+self.Data
+    return str(self.mh)+", Flags "+str(self.Flags)+", TopicId "+str(self.TopicId)+", MsgId "+str(self.MsgId)+", Data "+str(self.Data)
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
@@ -535,7 +554,7 @@ class Pubacks(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = writeInt16(self.TopicId) + writeInt16(self.MsgId) + chr(self.ReturnCode)
+    buffer = writeInt16(self.TopicId) + writeInt16(self.MsgId) + struct.pack('>B', self.ReturnCode)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
@@ -545,7 +564,7 @@ class Pubacks(Packets):
     pos += 2
     self.MsgId = readInt16(buffer[pos:])
     pos += 2
-    self.ReturnCode = ord(buffer[pos])
+    self.ReturnCode = buffer[pos]
 
   def __str__(self):
     return str(self.mh)+", TopicId "+str(self.TopicId)+" , MsgId "+str(self.MsgId)+", ReturnCode "+str(self.ReturnCode)
@@ -555,8 +574,8 @@ class Pubacks(Packets):
            self.TopicId == packet.TopicId and \
            self.MsgId == packet.MsgId and \
            self.ReturnCode == packet.ReturnCode
-          
-          
+
+
 class Pubrecs(Packets):
 
   def __init__(self, buffer = None):
@@ -578,7 +597,7 @@ class Pubrecs(Packets):
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and self.MsgId == packet.MsgId
-    
+
 class Pubrels(Packets):
 
   def __init__(self, buffer = None):
@@ -623,8 +642,8 @@ class Pubcomps(Packets):
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and self.MsgId == packet.MsgId
-    
-    
+
+
 class Subscribes(Packets):
 
   def __init__(self, buffer = None):
@@ -641,7 +660,9 @@ class Subscribes(Packets):
     if self.Flags.TopicIdType == TOPIC_PREDEFINED:
       buffer += writeInt16(self.TopicId)
     elif self.Flags.TopicIdType in [TOPIC_NORMAL, TOPIC_SHORTNAME]:
-      buffer += self.TopicName
+      self.TopicName = str(self.TopicName).encode()
+      fmt = '>%ds' % len(self.TopicName)
+      buffer += struct.pack(fmt, self.TopicName)
     return self.mh.pack(len(buffer)) + buffer
 
 
@@ -661,18 +682,24 @@ class Subscribes(Packets):
   def __str__(self):
     buffer = str(self.mh)+", Flags "+str(self.Flags)+", MsgId "+str(self.MsgId)
     if self.Flags.TopicIdType == 0:
-      buffer += ", TopicName "+self.TopicName
+      buffer += ", TopicName "+str(self.TopicName)
     elif self.Flags.TopicIdType == 1:
       buffer += ", TopicId "+str(self.TopicId)
     elif self.Flags.TopicIdType == 2:
-      buffer += ", TopicId "+self.TopicId
+      buffer += ", TopicId "+str(self.TopicId)
     return buffer
 
   def __eq__(self, packet):
     if self.Flags.TopicIdType == 0:
-      rc = self.TopicName == packet.TopicName
+      if packet == None:
+        rc = False
+      else:
+        rc = self.TopicName == packet.TopicName
     else:
-      rc = self.TopicId == packet.TopicId
+      if packet == None:
+        rc = False
+      else:
+        rc = self.TopicId == packet.TopicId
     return Packets.__eq__(self, packet) and \
          self.Flags == packet.Flags and \
          self.MsgId == packet.MsgId and rc
@@ -690,7 +717,7 @@ class Subacks(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = self.Flags.pack() + writeInt16(self.TopicId) + writeInt16(self.MsgId) + chr(self.ReturnCode)
+    buffer = self.Flags.pack() + writeInt16(self.TopicId) + writeInt16(self.MsgId) + struct.pack('>B', self.ReturnCode)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
@@ -701,7 +728,7 @@ class Subacks(Packets):
     pos += 2
     self.MsgId = readInt16(buffer[pos:])
     pos += 2
-    self.ReturnCode = ord(buffer[pos])
+    self.ReturnCode = buffer[pos]
 
   def __str__(self):
     return str(self.mh)+", Flags "+str(self.Flags)+", TopicId "+str(self.TopicId)+" , MsgId "+str(self.MsgId)+", ReturnCode "+str(self.ReturnCode)
@@ -728,11 +755,15 @@ class Unsubscribes(Packets):
   def pack(self):
     buffer = self.Flags.pack() + writeInt16(self.MsgId)
     if self.Flags.TopicIdType == 0:
-      buffer += self.TopicName
+      self.TopicName = str(self.TopicName).encode()
+      fmt = '>%ds' % len(self.TopicName)
+      buffer += struct.pack(fmt, self.TopicName)
     elif self.Flags.TopicIdType == 1:
       buffer += writeInt16(self.TopicId)
     elif self.Flags.TopicIdType == 2:
-      buffer += self.TopicId
+      self.TopicId = str(self.TopicId).encode()
+      fmt = '>%ds' % len(self.TopicId)
+      buffer += struct.pack(fmt, self.TopicId)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
@@ -753,11 +784,11 @@ class Unsubscribes(Packets):
   def __str__(self):
     buffer = str(self.mh)+", Flags "+str(self.Flags)+", MsgId "+str(self.MsgId)
     if self.Flags.TopicIdType == 0:
-      buffer += ", TopicName "+self.TopicName
+      buffer += ", TopicName "+str(self.TopicName)
     elif self.Flags.TopicIdType == 1:
       buffer += ", TopicId "+str(self.TopicId)
     elif self.Flags.TopicIdType == 2:
-      buffer += ", TopicId "+self.TopicId
+      buffer += ", TopicId "+str(self.TopicId)
     return buffer
 
   def __eq__(self, packet):
@@ -800,7 +831,9 @@ class Pingreqs(Packets):
 
   def pack(self):
     if self.ClientId:
-      buf = self.mh.pack(len(self.ClientId)) + self.ClientId
+      self.ClientId = str(self.ClientId).encode()
+      fmt = '>%ds' % len(self.ClientId)
+      buf = self.mh.pack(len(self.ClientId)) + struct.pack(fmt, self.ClientId)
     else:
       buf = self.mh.pack(0)
     return buf
@@ -809,19 +842,19 @@ class Pingreqs(Packets):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == PINGREQ
     self.ClientId = buffer[pos:self.mh.Length]
-    if self.ClientId == '':
+    if self.ClientId == b'':
       self.ClientId = None
 
   def __str__(self):
     buf = str(self.mh)
     if self.ClientId:
-      buf += ", ClientId "+self.ClientId
+      buf += ", ClientId "+str(self.ClientId)
     return buf
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.ClientId == packet.ClientId
-          
+
 
 class Pingresps(Packets):
 
@@ -833,7 +866,7 @@ class Pingresps(Packets):
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == PINGRESP
-  
+
 class Disconnects(Packets):
 
   def __init__(self, buffer = None):
@@ -853,7 +886,7 @@ class Disconnects(Packets):
     pos = self.mh.unpack(buffer)
     assert self.mh.MsgType == DISCONNECT
     buf = buffer[pos:self.mh.Length]
-    if buf == '':
+    if buf == b'':
       self.Duration = None
     else:
       self.Duration = readInt16(buffer[pos:])
@@ -867,7 +900,7 @@ class Disconnects(Packets):
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.Duration == packet.Duration
-          
+
 class WillTopicUpds(Packets):
 
   def __init__(self, buffer = None):
@@ -878,7 +911,9 @@ class WillTopicUpds(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    buffer = self.flags.pack() + self.WillTopic
+    self.WillTopic = str(self.WillTopic).encode()
+    fmt = '>%ds' % len(self.WillTopic)
+    buffer = self.flags.pack() + struct.pack(fmt, self.WillTopic)
     return self.mh.pack(len(buffer)) + buffer
 
   def unpack(self, buffer):
@@ -888,13 +923,13 @@ class WillTopicUpds(Packets):
     self.WillTopic = buffer[pos:self.mh.Length]
 
   def __str__(self):
-    return str(self.mh)+", Flags "+str(self.flags)+", WillTopic "+self.WillTopic
+    return str(self.mh)+", Flags "+str(self.flags)+", WillTopic "+str(self.WillTopic)
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.flags == packet.flags and \
            self.WillTopic == packet.WillTopic
-          
+
 class WillMsgUpds(Packets):
 
   def __init__(self, buffer = None):
@@ -904,7 +939,9 @@ class WillMsgUpds(Packets):
       self.unpack(buffer)
 
   def pack(self):
-    return self.mh.pack(len(self.WillMsg)) + self.WillMsg
+    self.WillMsg = str(self.WillMsg).encode()
+    fmt = '>%ds' % len(self.WillMsg)
+    return self.mh.pack(len(self.WillMsg)) + struct.pack(fmt, self.WillMsg)
 
   def unpack(self, buffer):
     pos = self.mh.unpack(buffer)
@@ -912,12 +949,12 @@ class WillMsgUpds(Packets):
     self.WillMsg = buffer[pos:self.mh.Length]
 
   def __str__(self):
-    return str(self.mh)+", WillMsg "+self.WillMsg
+    return str(self.mh)+", WillMsg "+str(self.WillMsg)
 
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.WillMsg == packet.WillMsg
-          
+
 class WillTopicResps(Packets):
 
   def __init__(self, buffer = None):
@@ -941,7 +978,7 @@ class WillTopicResps(Packets):
   def __eq__(self, packet):
     return Packets.__eq__(self, packet) and \
            self.ReturnCode == packet.ReturnCode
-          
+
 class WillMsgResps(Packets):
 
   def __init__(self, buffer = None):
@@ -968,14 +1005,15 @@ class WillMsgResps(Packets):
 
 objects = [Advertises, SearchGWs, GWInfos, None,
            Connects, Connacks,
-           WillTopicReqs, WillTopics, WillMsgReqs, WillMsgs, 
-           Registers, Regacks, 
+           WillTopicReqs, WillTopics, WillMsgReqs, WillMsgs,
+           Registers, Regacks,
            Publishes, Pubacks, Pubcomps, Pubrecs, Pubrels, None,
            Subscribes, Subacks, Unsubscribes, Unsubacks,
            Pingreqs, Pingresps, Disconnects, None,
            WillTopicUpds, WillTopicResps, WillMsgUpds, WillMsgResps]
 
-def unpackPacket((buffer, address)):
+def unpackPacket(msg):
+  (buffer, address) = msg
   if MessageType(buffer) != None:
     packet = objects[MessageType(buffer)]()
     packet.unpack(buffer)
@@ -984,22 +1022,20 @@ def unpackPacket((buffer, address)):
   return packet, address
 
 if __name__ == "__main__":
-  print "Object string representations"
+  print("Object string representations")
   for o in objects:
     if o:
-      print o()
-      
-  print "\nComparisons"
+      print(o())
+
+  print("\nComparisons")
   for o in [Flags] + objects:
     if o:
       o1 = o()
       o2 = o()
       o2.unpack(o1.pack())
       if o1 != o2:
-        print "error! ", str(o1.mh) if hasattr(o1, "mh") else o1.__class__.__name__
-        print str(o1)
-        print str(o2)
+        print("error! ", str(o1.mh) if hasattr(o1, "mh") else o1.__class__.__name__)
+        print(str(o1))
+        print(str(o2))
       else:
-        print "ok ", str(o1.mh) if hasattr(o1, "mh") else o1.__class__.__name__
-  
-
+        print("ok ", str(o1.mh) if hasattr(o1, "mh") else o1.__class__.__name__)

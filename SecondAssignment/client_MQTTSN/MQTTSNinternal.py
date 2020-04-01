@@ -4,26 +4,28 @@
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
- * and Eclipse Distribution License v1.0 which accompany this distribution. 
+ * and Eclipse Distribution License v1.0 which accompany this distribution.
  *
- * The Eclipse Public License is available at 
+ * The Eclipse Public License is available at
  *    http://www.eclipse.org/legal/epl-v10.html
- * and the Eclipse Distribution License is available at 
+ * and the Eclipse Distribution License is available at
  *   http://www.eclipse.org/org/documents/edl-v10.php.
  *
  * Contributors:
  *    Ian Craggs - initial API and implementation and/or initial documentation
+ *    EH Ong - port to Python 3 and Micropython
  *******************************************************************************/
 """
 
-import MQTTSN, time, sys, socket, traceback
+import MQTTSN
+import time, sys, socket
 
 debug = False
 
 class Receivers:
 
   def __init__(self, socket):
-    print "initializing receiver"
+    #print("initializing receiver")
     self.socket = socket
     self.connected = False
     self.observe = None
@@ -60,35 +62,34 @@ class Receivers:
     self.observe = None
     return msg
 
-  def receive(self, callback=None):
+  def receive(self, topicmap, callback=None):
     packet = None
     try:
       packet, address = MQTTSN.unpackPacket(MQTTSN.getPacket(self.socket))
     except:
       if sys.exc_info()[0] != socket.timeout:
-        print "unexpected exception", sys.exc_info()
+        #print("unexpected exception", sys.exc_info())
         raise sys.exc_info()
     if packet == None:
       time.sleep(0.1)
       return
     elif debug:
-      print packet
+      print(packet)
 
     if self.observe == packet.mh.MsgType:
-      print "observed", packet
+      #print("observed", packet)
       self.observed.append(packet)
-        
+
     elif packet.mh.MsgType == MQTTSN.ADVERTISE:
       if hasattr(callback, "advertise"):
         callback.advertise(address, packet.GwId, packet.Duration)
 
     elif packet.mh.MsgType == MQTTSN.REGISTER:
-      if callback and hasattr(callback, "register"):
-        callback.register(packet.TopicId, packet.Topicname)
+      topicmap.register(packet.TopicId, packet.TopicName)
 
     elif packet.mh.MsgType == MQTTSN.PUBACK:
       "check if we are expecting a puback"
-      if self.outMsgs.has_key(packet.MsgId) and \
+      if packet.MsgId in self.outMsgs and \
         self.outMsgs[packet.MsgId].Flags.QoS == 1:
         del self.outMsgs[packet.MsgId]
         if hasattr(callback, "published"):
@@ -97,7 +98,7 @@ class Receivers:
         raise Exception("No QoS 1 message with message id "+str(packet.MsgId)+" sent")
 
     elif packet.mh.MsgType == MQTTSN.PUBREC:
-      if self.outMsgs.has_key(packet.MsgId):
+      if packet.MsgId in self.outMsgs:
         self.pubrel.MsgId = packet.MsgId
         self.socket.send(self.pubrel.pack())
       else:
@@ -107,21 +108,22 @@ class Receivers:
     elif packet.mh.MsgType == MQTTSN.PUBREL:
       "release QOS 2 publication to client, & send PUBCOMP"
       msgid = packet.MsgId
-      if not self.inMsgs.has_key(msgid):
+      if packet.MsgId not in self.inMsgs:
         pass # what should we do here?
       else:
         pub = self.inMsgs[packet.MsgId]
+        topicname = topicmap.registered[pub.TopicId]
         if callback == None or \
-           callback.messageArrived(pub.TopicName, pub.Data, 2, pub.Flags.Retain, pub.MsgId):
+           callback.messageArrived(topicname, pub.Data, 2, pub.Flags.Retain, pub.MsgId):
           del self.inMsgs[packet.MsgId]
           self.pubcomp.MsgId = packet.MsgId
           self.socket.send(self.pubcomp.pack())
         if callback == None:
-          return (pub.TopicName, pub.Data, 2, pub.Flags.Retain, pub.MsgId)
+          return (topicname, pub.Data, 2, pub.Flags.Retain, pub.MsgId)
 
     elif packet.mh.MsgType == MQTTSN.PUBCOMP:
       "finished with this message id"
-      if self.outMsgs.has_key(packet.MsgId):
+      if packet.MsgId in self.outMsgs:
         del self.outMsgs[packet.MsgId]
         if hasattr(callback, "published"):
           callback.published(packet.MsgId)
@@ -133,7 +135,7 @@ class Receivers:
       "finished with this message id"
       if packet.Flags.QoS in [0, 3]:
         qos = packet.Flags.QoS
-        topicname = packet.TopicName
+        topicname = topicmap.registered[packet.TopicId]
         data = packet.Data
         if qos == 3:
           qos = -1
@@ -145,11 +147,12 @@ class Receivers:
         else:
           callback.messageArrived(topicname, data, qos, packet.Flags.Retain, packet.MsgId)
       elif packet.Flags.QoS == 1:
+        topicname = topicmap.registered[packet.TopicId]
         if callback == None:
-          return (packet.topicName, packet.Data, 1,
+          return (topicname, packet.Data, 1,
                            packet.Flags.Retain, packet.MsgId)
         else:
-          if callback.messageArrived(packet.TopicName, packet.Data, 1,
+          if callback.messageArrived(topicname, packet.Data, 1,
                            packet.Flags.Retain, packet.MsgId):
             self.puback.MsgId = packet.MsgId
             self.socket.send(self.puback.pack())
@@ -162,11 +165,12 @@ class Receivers:
       raise Exception("Unexpected packet"+str(packet))
     return packet
 
-  def __call__(self, callback):
+  def __call__(self, callback, topicmap, queue):
     try:
       while True:
-        self.receive(callback)
+        self.receive(topicmap, callback)
     except:
+      queue.put(sys.exc_info())
       if sys.exc_info()[0] != socket.error:
-        print "unexpected exception", sys.exc_info()
-        traceback.print_exc()
+        #print("unexpected exception", sys.exc_info())
+        pass
