@@ -16,6 +16,8 @@ var stations = new Set();
 // I have to reverse this list and take the first tuple.
 function getLatestValue() {
 
+    stations = new Set();
+
     // Parameters for the scan of the DB.
     var params = {
         ExpressionAttributeNames: {
@@ -44,7 +46,7 @@ function getLatestValue() {
                 //Parameters of the query.
                 var params = {
                     TableName: "EnvironmentalStationDB",
-                    ProjectionExpression: "#dtime, temperature, humidity, windDirection, windIntensity, rainHeight",
+                    ProjectionExpression: "id, #dtime, temperature, humidity, windDirection, windIntensity, rainHeight",
                     KeyConditionExpression: "id = :stationId",
                     ExpressionAttributeNames: {
                         "#dtime": "datetime"
@@ -93,9 +95,10 @@ function getLatestValue() {
                         // from the newest to the oldest.
                         var actual = data.Items;
 
+                        document.getElementById('station' + id).innerHTML = "";
                         // Insert the latest 5 tuples for each station.
                         for (c = 0; c < 5; c++) {
-                            document.getElementById('station' + id).innerHTML += '<tr><td>' + actual[c].datetime + '</td><td>' + actual[c].temperature + '</td><td>' + actual[c].humidity +
+                            document.getElementById('station' + id).innerHTML += '<tr><td>' + actual[c].id + '</td><td>' + actual[c].datetime + '</td><td>' + actual[c].temperature + '</td><td>' + actual[c].humidity +
                                 '</td><td>' + actual[c].windDirection + '</td><td>' + actual[c].windIntensity + '</td><td>' + actual[c].rainHeight + '</td></tr> ';
                         }
                     }
@@ -104,6 +107,7 @@ function getLatestValue() {
             });
         }
     };
+
 }
 
 // Function that returns the one hour ago from now.
@@ -187,7 +191,7 @@ function getLastHourData(sensor) {
             console.log("Error", err);
         } else {
             var c;
-            var items = data.Items;
+            var items = data.Items.reverse();
             var sizeList = Object.keys(items).length;
             for (c = 0; c < sizeList; c++) {
                 if (sensor === "temperature")
