@@ -52,7 +52,7 @@ TTNClient = mqtt.Client()
 TTNClient.on_connect = on_connect
 TTNClient.on_message = on_message
 # you have to insert your parameters here
-TTNClient.username_pw_set("<application_id>", "<access_key>")
+TTNClient.username_pw_set("virtual-environmental-station", "ttn-account-v2.vI2s4ESJGyrZi2-hNUPb9_VUdVF3F3NyUerqgDZ9Oww")
 
 # connect the clients
 TTNClient.connect("eu.thethings.network", 1883, 60)
