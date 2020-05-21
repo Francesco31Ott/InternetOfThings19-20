@@ -1,9 +1,14 @@
 $(document).ready(function () {
 
+  // Variables
   var id = createID();
-  var topic = "sensor/test";
+  var topic = "sensor/" + id + "/accelerometer";
   var mqttClient = null;
-
+  var activity;
+  
+  // Buttons
+  var edgeActivated = false;
+  var cloudActivated = false;
 
   // AWS Cognito credentials
   AWS.config.region = 'us-east-1';
@@ -20,44 +25,61 @@ $(document).ready(function () {
     mqttClient.conn(callbackConnection, callbackReceive);
   });
 
-  // Callback for the MQTT client connection
+  // Callback (MQTT client is connected)
   function callbackConnection() {
     func();
   }
 
-  // Callback for the MQTT client when receives a message
+  // Callback (MQTT client has received a message)
   function callbackReceive(msg) {
-    msg = JSON.parse(msg);
-    setMeasureText('x: ' + msg.x + '<br>y: ' + msg.y + '<br>z: ' + msg.z + "<br>" + (msg.isStanding ? "you're standing" : "you're moving"));
+    console.log(msg);
   }
 
-  // The MQTT client starts to sending messages only if it is connected 
+  // If the MQTT client is connected, start the process 
   function func() {
     if (!mqttClient.isConn()) {
       setMeasureText("Cannot connect to AWS");
       return;
     }
+
     start();
   }
 
   function start() {
     try {
-      // Create Accelerometer Sensor
-      let sensor = new Accelerometer({ frequency: 1 });
+      // Create LinearAccelerometerSensor
+      let sensor = new LinearAccelerationSensor({ frequency: 1 });
       sensor.onerror = event => console.log(event.error.name, event.error.message);
-
-      $('#stop').click(() => { sensor.stop() });
-      $('#start').click(() => { sensor.start() });
-
+      
+      // Start the sensor if a button is clicked
+      $('#edge').click(() => { 
+        edgeActivated = true;
+        cloudActivated = false;
+        sensor.start() 
+      });
+      $('#cloud').click(() => { 
+        cloudActivated = true;
+        edgeActivated = false;
+        sensor.start() 
+      });
+      
       sensor.onreading = () => {
-        console.log("Acceleration along X-axis: " + sensor.x);
         $('#x').text(sensor.x);
-        console.log("Acceleration along Y-axis: " + sensor.y);
         $('#y').text(sensor.y);
-        console.log("Acceleration along Z-axis: " + sensor.z);
         $('#z').text(sensor.z);
-
-        sendData(sensor.x, sensor.y, sensor.z);
+        
+        // Edge side
+        if(edgeActivated){
+          activity = activityRecognition(sensor.x, sensor.y, sensor.z);
+          $('#activity').text(activity);
+          sendData(sensor.x, sensor.y, sensor.z, activity);
+        }
+        
+        // Cloud side
+        if(cloudActivated)
+          sendData(sensor.x, sensor.y, sensor.z, null);
+        
+        
       }
 
     } catch (error) {
@@ -67,18 +89,34 @@ $(document).ready(function () {
 
   }
 
-  function sendData(x, y, z, flag) {
+  // Function that computes the length of the vector
+  // to predict the activity of the user
+  function activityRecognition(x,y,z){
+    var state = "";
+    var a = Math.sqrt(x*x + y*y + z*z).toFixed(2);
+    $('#overall').text(a);
+    if(a > 3)
+      state = "running";
+    else if(a > 0.6)
+      state = "walking";
+    else
+      state = "standing still";
+      
+    return state;
+  }
+
+  function sendData(x, y, z, activityRec) {
     try {
       // Subscribe to the topic
       mqttClient.sub(topic);
 
       var json = "{ \"id\":\"" + id + "\", \"timestamp\": \"" + getDateTime() + "\"";
 
-      // If the flag is TRUE, we are on the edge side
-      // Otherwise we are on the cloud side
-      if (flag)
-        json += ", \"x\":" + x + ", \"y\":" + y + ", \"z\":" + z + ", \"activity\": " + activity() + "}";
-      else
+      // The additional data of the user's activity will added in the json
+      // only if the edge button is activated
+      if(edgeActivated)
+        json += ", \"x\":" + x + ", \"y\":" + y + ", \"z\":" + z + ", \"activity\":" + activityRec + "}";
+      if(cloudActivated)
         json += ", \"x\":" + x + ", \"y\":" + y + ", \"z\":" + z + "}";
 
       mqttClient.pub(json, topic);
