@@ -2,9 +2,9 @@
 * utilities to do sigv4
 * @class SigV4Utils
 */
-function SigV4Utils() {}
+function SigV4Utils() { }
 
-SigV4Utils.getSignatureKey = function(key, date, region, service) {
+SigV4Utils.getSignatureKey = function (key, date, region, service) {
   var kDate = AWS.util.crypto.hmac('AWS4' + key, date, 'buffer');
   var kRegion = AWS.util.crypto.hmac(kDate, region, 'buffer');
   var kService = AWS.util.crypto.hmac(kRegion, service, 'buffer');
@@ -12,7 +12,9 @@ SigV4Utils.getSignatureKey = function(key, date, region, service) {
   return kCredentials;
 };
 
-SigV4Utils.getSignedUrl = function(host, region, credentials) {
+SigV4Utils.getSignedUrl = function (host, region, credentials) {
+
+  // Create a canonical request for Signature Version 4.
   var datetime = AWS.util.date.iso8601(new Date()).replace(/[:\-]|\.\d{3}/g, '');
   var date = datetime.substr(0, 8);
 
@@ -32,16 +34,21 @@ SigV4Utils.getSignedUrl = function(host, region, credentials) {
   var payloadHash = AWS.util.crypto.sha256('', 'hex');
   var canonicalRequest = method + '\n' + uri + '\n' + canonicalQuerystring + '\n' + canonicalHeaders + '\nhost\n' + payloadHash;
 
+  // Create a string to sign, generate a signing key, and sign the string.
   var stringToSign = algorithm + '\n' + datetime + '\n' + credentialScope + '\n' + AWS.util.crypto.sha256(canonicalRequest, 'hex');
   var signingKey = SigV4Utils.getSignatureKey(credentials.secretAccessKey, date, region, service);
   var signature = AWS.util.crypto.hmac(signingKey, stringToSign, 'hex');
 
+  // Add the signing information to the request.
   canonicalQuerystring += '&X-Amz-Signature=' + signature;
 
+  // If you have session credentials (from an STS server, AssumeRole, or Amazon Cognito), 
+  // append the session token to the end of the URL string after signing.
   if (credentials.sessionToken) {
     canonicalQuerystring += '&X-Amz-Security-Token=' + encodeURIComponent(credentials.sessionToken);
   }
 
+  // Prepend the protocol, host, and URI to the canonicalQuerystring.
   var requestUrl = protocol + '://' + host + uri + '?' + canonicalQuerystring;
   return requestUrl;
 };

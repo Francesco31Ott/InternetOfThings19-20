@@ -13,18 +13,27 @@
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.7.16.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"
       type="text/javascript"></script>
+
+    <script src="https://kit.fontawesome.com/9af2c67aaa.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+
     <script src="websocket.js"></script>
     <script src="mqtt.js"></script>
     <script src="script.js"> </script>
   </head>
 
-  <body>
-    <h1>Accelerometer</h1>
-    
-    <button type="button" id="edge">Edge</button>
-    <button type="button" id="cloud">Cloud</button>
-    
-    <div class="container" id="accel">
+  <body style="text-align:center">
+    <h1>User Activity Recognition</h1>
+
+    <br><br>
+
+    <button type="button" class="btn btn-success btn-lg" id="edge">Edge Computing</button>
+    <button type="button" class="btn btn-primary btn-lg" id="cloud">Cloud Computing</button>
+
+    <br><br>
+
+    <div class="container">
       <div class="row">
         <div class="col-sm" id="x">
 
@@ -40,7 +49,55 @@
 
         </div>
       </div>
+
+      <div class="container-fluid h-100">
+        <div class="row h-100 justify-content-center align-items-center">
+          <div class="col-sm-3 col-sm-offset-1">
+            <div class="card card-stats">
+              <div class="card-header card-header-warning card-header-icon">
+                <div class="card-icon">
+                  <i id="image" class="fas fa-male fa-2x"></i>
+                </div>
+                <p class="card-category" style="font-size:150%;">Activity</p>
+                <h3 id="latest-value" class="card-title">
+                </h3>
+              </div>
+              <div class="card-footer">
+                <div id="update" class="stats">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header card-header-primary">
+          <h4 id="table-title" class="card-title">Values received during the last hour</h4>
+          <p id="table-desc" class="card-category"></p>
+        </div>
+        <div class="card-body table-responsive table-body" style="height:500px;overflow:auto;">
+          <table class="table table-hover">
+            <thead class="text-warning">
+              <th>Timestamp</th>
+              <th>x</th>
+              <th>y</th>
+              <th>z</th>
+              <th>Activity</th>
+            </thead>
+            <tbody id="lh-table">
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </body>
+  <style>
+    .card,
+    .table {
+      margin: 10pt;
+      text-align: center;
+    }
+  </style>
 
 </html>
