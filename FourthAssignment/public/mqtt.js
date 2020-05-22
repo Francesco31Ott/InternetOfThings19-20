@@ -41,7 +41,6 @@ class PahoMQTTClient {
     // Function called when there is an incoming message.
     function onMessageArrived(message) {
       console.log("onMessageArrived:" + message.payloadString);
-      callbackReceive(message.payloadString);
     }
 
   }
